@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="C:\Users\Hamza\Documents\6th SEM\5) AI\3) PROJ\FilmFinder\static\ff.css">
+    <title>FilmFinder</title>
+</head>
+<body>
+    <div class="content" id="home-page">
+        <h1 class="content">FilmFinder</h1>
+        <h2 class="content tagline">"Discover movies loved by others like you!"</h2>
+        <h3 class="content">Answer these questions to find your next favorite movie.</h3>
+        <div style="text-align: center;">
+            <button class="content" id="start-button">Start</button>
+        </div>
+    </div>
+
+    <div class="content" style="text-align: center; display: none;" id="question-page">
+        <div class="content" id="question-container">
+            <!-- Dynamic content will be injected here -->
+        </div>
+    </div>
+
+    <script>
+        const homePage = document.getElementById('home-page');
+        const questionPage = document.getElementById('question-page');
+        const questionContainer = document.getElementById('question-container');
+
+        const questions = [
+            {
+                question: "Which of these genres do you enjoy the most?",
+                options: ["Action", "Comedy", "Drama", "Horror", "Sci-Fi"],
+            },
+            {
+                question: "How often do you watch movies?",
+                options: ["Daily", "A few times a week", "Once a week", "Rarely"],
+            },
+            {
+                question: "Do you prefer recent movies or classics?",
+                options: ["Recent (2010-2024)", "Classics (Before 2010)"],
+            },
+            {
+                question: "Pick your favorite movie length:",
+                options: ["< 90 minutes", "90-120 minutes", "120-150 minutes", "> 150 minutes"],
+            },
+            {
+                question: "What type of endings do you prefer?",
+                options: ["Happy", "Sad", "Open-ended", "Surprise Twists"],
+            },
+        ];
+
+        let currentQuestionIndex = 0;
+        let selectedOptions = Array(questions.length).fill(null);
+
+        function renderQuestion() {
+            const questionData = questions[currentQuestionIndex];
+            questionContainer.innerHTML = `
+                <h2>${questionData.question}</h2>
+                <ul class="options">
+                    ${questionData.options.map((option, index) => `
+                        <li class="option ${selectedOptions[currentQuestionIndex] === index ? 'selected' : ''}" data-index="${index}">${option}</li>
+                    `).join('')}
+                </ul>
+                <div class="navigation">
+                    ${currentQuestionIndex > 0 ? '<button id="previous-button">Go Back</button>' : ''}
+                </div>
+            `;
+
+            document.querySelectorAll('.option').forEach(option => {
+                option.addEventListener('click', (e) => {
+                    const index = parseInt(e.target.getAttribute('data-index'));
+                    selectedOptions[currentQuestionIndex] = index;
+
+                    if (currentQuestionIndex < questions.length - 1) {
+                        currentQuestionIndex++;
+                        renderQuestion();
+                    } else {
+                        showResults();
+                    }
+                });
+            });
+
+            if (currentQuestionIndex > 0) {
+                document.getElementById('previous-button').addEventListener('click', () => {
+                    currentQuestionIndex--;
+                    renderQuestion();
+                });
+            }
+        }
+
+        function showResults() {
+    const userPreferences = questions.map((q, i) => ({
+        question: q.question,
+        answer: q.options[selectedOptions[i]],
+    }));
+
+    fetch('http://127.0.0.1:5000/submit_preferences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userPreferences),
+    })
+    .then(response => response.json())
+    .then(data => {
+        const recommendationContainer = document.createElement('div');
+        recommendationContainer.innerHTML = `
+            <h2>Recommended Movies</h2>
+            <ul id="recommendations">
+                ${data.recommendations.map(movie => `<li>${movie}</li>`).join('')}
+            </ul>
+            <button id="restart-button">Restart</button>
+        `;
+        questionPage.innerHTML = ''; // Clear the question page
+        questionPage.appendChild(recommendationContainer);
+
+        // Add event listener for the restart button
+        document.getElementById('restart-button').addEventListener('click', () => {
+            currentQuestionIndex = 0;
+            selectedOptions.fill(null);
+            questionPage.style.display = 'none';
+            homePage.style.display = 'block';
+        });
+    })
+    .catch(error => console.error('Error:', error));
+}
+
+
+        document.getElementById('start-button').addEventListener('click', () => {
+            homePage.style.display = 'none';
+            questionPage.style.display = 'block';
+            renderQuestion();
+        });
+    </script>
+</body>
+</html>

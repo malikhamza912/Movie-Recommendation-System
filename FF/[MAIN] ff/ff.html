@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="ff.css">
+    <title>FilmFinder</title>
+</head>
+<body>
+    <div class="content" id="home-page">
+        <h1 class="content">FilmFinder</h1>
+        <h2 class="content tagline">"Discover movies loved by others like you!"</h2>
+        <h3 class="content">Answer these questions to find your next favorite movie.</h3>
+        <div style="text-align: center;">
+            <button class="content" id="start-button">Start</button>
+        </div>
+    </div>
+
+    <div class="content" style="text-align: center; display: none;" id="question-page">
+        <div class="content" id="question-container">
+            <!-- Dynamic content will be injected here -->
+        </div>
+    </div>
+
+    <script>
+        const homePage = document.getElementById('home-page');
+        const questionPage = document.getElementById('question-page');
+        const questionContainer = document.getElementById('question-container');
+    
+        let existingUserIds = []; // Array to store existing user IDs
+        let userId; // Variable to hold the generated user ID
+    
+        // Fetch existing user IDs from the ratings dataset
+        async function fetchExistingUserIds() {
+            try {
+                const response = await fetch('https://raw.githubusercontent.com/Uttkarsh14/Movie-Recommendation-Engine/main/ratings.csv');
+                const data = await response.text();
+                const rows = data.split('\n').slice(1); // Skip header
+                existingUserIds = rows.map(row => row.split(',')[0]); // Get userId (first column)
+                generateUniqueUserId(); // Generate a unique user ID once the existing IDs are fetched
+            } catch (error) {
+                console.error('Error fetching user IDs:', error);
+            }
+        }
+    
+        // Generate a unique user ID
+        function generateUniqueUserId() {
+            do {
+                userId = Math.floor(Math.random() * 10000); // Random ID between 0 and 9999
+            } while (existingUserIds.includes(userId.toString())); // Check if ID exists
+            console.log("Generated Unique User ID:", userId); // For debugging purposes
+        }
+
+        const questions = [
+            {
+                question: "Which of these genres do you enjoy the most?",
+                options: ["Action", "Comedy", "Drama", "Horror", "Sci-Fi", "Adventure", "Animation", "Crime", 
+                "Documentary", "Fantasy", "IMAX", "Musical", "Mystery", "Romance", "Thriller", "War", "Western", 
+                "Children", "Film-Noir"],
+                isMultiSelect: true,
+            },
+            {
+                question: "How often do you watch movies?",
+                options: ["Daily", "A few times a week", "Once a week", "Rarely"],
+                isMultiSelect: false,
+            },
+            {
+                question: "Do you prefer recent movies or classics?",
+                options: ["Recent (2010-2024)", "Classics (Before 2010)"],
+                isMultiSelect: false,
+            },
+            {
+                question: "What type of endings do you prefer?",
+                options: ["Happy", "Sad", "Open-ended", "Surprise Twists"],
+                isMultiSelect: false,
+            },
+        ];
+
+        let currentQuestionIndex = 0;
+        let selectedOptions = Array(questions.length).fill(null).map(() => []);
+
+        function renderQuestion() {
+            const questionData = questions[currentQuestionIndex];
+            const isMultiSelect = questionData.isMultiSelect;
+
+            questionContainer.innerHTML = `
+                <h2>${questionData.question}</h2>
+                <div class="${isMultiSelect ? 'grid-options' : 'options'}">
+                    ${questionData.options.map((option, index) => `
+                        <label>
+                            <input type="${isMultiSelect ? 'checkbox' : 'radio'}" 
+                                   name="question-${currentQuestionIndex}" 
+                                   value="${index}" 
+                                   ${selectedOptions[currentQuestionIndex].includes(index) ? 'checked' : ''}>
+                            ${option}
+                        </label>
+                    `).join('')}
+                </div>
+                <div class="navigation">
+                    ${currentQuestionIndex > 0 ? '<button id="previous-button">Go Back</button>' : ''}
+                    <button id="next-button">${currentQuestionIndex === questions.length - 1 ? 'Finish' : 'Next'}</button>
+                </div>
+            `;
+
+            document.querySelectorAll('input').forEach(input => {
+                input.addEventListener('change', (e) => {
+                    const index = parseInt(e.target.value);
+                    if (isMultiSelect) {
+                        if (e.target.checked) {
+                            selectedOptions[currentQuestionIndex].push(index);
+                        } else {
+                            selectedOptions[currentQuestionIndex] = selectedOptions[currentQuestionIndex].filter(i => i !== index);
+                        }
+                    } else {
+                        selectedOptions[currentQuestionIndex] = [index];
+                    }
+                });
+            });
+
+            if (currentQuestionIndex > 0) {
+                document.getElementById('previous-button').addEventListener('click', () => {
+                    currentQuestionIndex--;
+                    renderQuestion();
+                });
+            }
+
+            document.getElementById('next-button').addEventListener('click', () => {
+                if (currentQuestionIndex < questions.length - 1) {
+                    currentQuestionIndex++;
+                    renderQuestion();
+                } else {
+                    showResults();
+                }
+            });
+        }
+
+        function showResults() {
+            const userPreferences = questions.map((q, i) => ({
+                question: q.question,
+                answers: selectedOptions[i].map(index => q.options[index]),
+            }));
+        
+            fetch('http://127.0.0.1:5000/submit_preferences', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: userId, preferences: userPreferences }),  // Send user ID and preferences to the backend
+            })
+            .then(response => response.json())
+            .then(data => {
+                const recommendationContainer = document.createElement('div');
+                recommendationContainer.innerHTML = `
+                    <h2>Recommended Movies</h2>
+                    <ul id="recommendations">
+                        ${data.recommendations.map(movie => `<li>${movie}</li>`).join('')}
+                    </ul>
+                    <button id="restart-button">Restart</button>
+                `;
+                questionPage.innerHTML = ''; // Clear the question page
+                questionPage.appendChild(recommendationContainer);
+        
+                // Add event listener for the restart button
+                document.getElementById('restart-button').addEventListener('click', () => {
+                    currentQuestionIndex = 0;
+                    selectedOptions = Array(questions.length).fill(null).map(() => []);
+                    questionPage.style.display = 'none';
+                    homePage.style.display = 'block';
+                });
+            })
+            .catch(error => console.error('Error:', error));
+        }
+        
+        document.getElementById('start-button').addEventListener('click', () => {
+            homePage.style.display = 'none';
+            questionPage.style.display = 'block';
+            renderQuestion();
+        });
+    
+        // Call the function to fetch existing user IDs when the page loads
+        fetchExistingUserIds();
+    </script>
+</body>
+</html>
