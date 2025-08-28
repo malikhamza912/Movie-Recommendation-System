@@ -23,15 +23,3 @@ An AI-based project that applies **Collaborative Filtering** and **Machine Learn
 3. Train ML models to enhance recommendation quality
 4. Generate top-N movie suggestions for each user
 
-## 🚀 Getting Started
-
-```bash
-# Clone repo
-git clone https://github.com/your-username/movie-recommender.git
-cd movie-recommender
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the model
-python recommender.py
